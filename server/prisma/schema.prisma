@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  displayName  String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  meetingsCreated Meeting[]
+  chatMessages     ChatMessage[]
+  recordings Recording[]
+  e2eeRecordings E2eeRecording[]
+}
+
+model Meeting {
+  id          String   @id @default(uuid())
+  roomId      String   @unique
+  title       String?
+  passcode    String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  isE2eeEnabled Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  chatMessages ChatMessage[]
+  recordings Recording[]
+  e2eeRecordings E2eeRecording[]
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  type      String
+  message   String
+  username  String
+  socketId  String?
+  userId    String?
+  roomId    String
+  meetingId String?
+  createdAt DateTime @default(now())
+
+  user    User?    @relation(fields: [userId], references: [id])
+  meeting Meeting? @relation(fields: [meetingId], references: [id])
+
+  @@index([roomId])
+  @@index([meetingId])
+  @@index([createdAt])
+}
+
+enum RecordingStatus {
+  PROCESSING
+  READY
+  FAILED
+  STOPPED
+}
+
+model Recording {
+  id          String          @id @default(cuid())
+
+  meetingId  String
+  meeting    Meeting         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  status      RecordingStatus @default(PROCESSING)
+
+  startedAt   DateTime        @default(now())
+  stoppedAt   DateTime?
+  durationSec Int?
+
+  storageKey  String?
+  playbackUrl String?
+  downloadUrl String?
+  sizeBytes   Int?
+
+  errorMessage String?
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([meetingId])
+  @@index([createdById])
+  @@index([status])
+}
+
+enum E2eeRecordingStatus {
+  READY
+  FAILED
+}
+
+model E2eeRecording {
+  id          String              @id @default(cuid())
+  meetingId  String
+  meeting    Meeting             @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  status      E2eeRecordingStatus @default(READY)
+
+  storageKey  String
+  metadata    Json
+
+  sizeBytes   Int
+  durationSec Int?
+
+  startedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([meetingId])
+  @@index([createdById])
+}
